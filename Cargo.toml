@@ -1,0 +1,20 @@
+[package]
+name = "icn-agoranet"
+version = "0.1.0"
+edition = "2021"
+description = "Deliberation platform for the Intercooperative Network"
+
+[dependencies]
+actix-web = "4.4"
+actix-cors = "0.6"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.4", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+log = "0.4"
+env_logger = "0.10"
+tokio = { version = "1.29", features = ["full"] }
+
+[dev-dependencies]
+actix-rt = "2.8"
+reqwest = { version = "0.11", features = ["json"] } 
