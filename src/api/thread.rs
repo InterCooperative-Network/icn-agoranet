@@ -66,26 +66,38 @@ pub async fn create_thread(
 
 #[derive(Debug, Deserialize)]
 pub struct GetThreadsQuery {
-    /// Filter by proposal ID
+    /// Optional proposal ID to filter by
     pub proposal_id: Option<String>,
     
-    /// Filter by federation ID
+    /// Optional federation ID to filter by
     pub federation_id: Option<String>,
     
-    /// Filter by author DID
+    /// Optional author DID to filter by
     pub author_did: Option<String>,
     
-    /// Filter by thread status
+    /// Optional status to filter by (open, closed, archived, hidden)
     pub status: Option<String>,
     
-    /// Maximum number of threads to return
-    pub limit: Option<usize>,
+    /// Optional full text search query for title and content
+    pub query: Option<String>,
     
-    /// Skip the first N threads
+    /// Optional tag to filter by
+    pub tag: Option<String>,
+    
+    /// Optional metadata key to match
+    pub metadata_key: Option<String>,
+    
+    /// Optional metadata value to match
+    pub metadata_value: Option<String>,
+    
+    /// Pagination offset
     pub offset: Option<usize>,
+    
+    /// Pagination limit
+    pub limit: Option<usize>,
 }
 
-/// Get a list of threads with optional filtering
+/// Get threads with optional filtering
 #[get("/threads")]
 pub async fn get_threads(
     db: web::Data<Mutex<Database>>,
@@ -94,7 +106,7 @@ pub async fn get_threads(
     let db = db.lock().unwrap();
     
     // Filter threads based on query parameters
-    let mut filtered_threads: Vec<&Thread> = db.threads.iter()
+    let filtered_threads: Vec<Thread> = db.threads.iter()
         .filter(|thread| {
             // Filter by proposal ID if provided
             if let Some(proposal_id) = &query.proposal_id {
@@ -136,25 +148,56 @@ pub async fn get_threads(
                 }
             }
             
+            // Filter by tag if provided
+            if let Some(tag) = &query.tag {
+                if !thread.tags.iter().any(|t| t == tag) {
+                    return false;
+                }
+            }
+            
+            // Filter by metadata if both key and value are provided
+            if let Some(key) = &query.metadata_key {
+                if let Some(value) = &query.metadata_value {
+                    if let Some(thread_value) = thread.metadata.get(key) {
+                        if thread_value != value {
+                            return false;
+                        }
+                    } else {
+                        return false;
+                    }
+                } else if !thread.metadata.contains_key(key) {
+                    // If only key is provided, make sure it exists
+                    return false;
+                }
+            }
+            
+            // Full text search in title and content if query is provided
+            if let Some(search_query) = &query.query {
+                let search_query = search_query.to_lowercase();
+                let title_match = thread.title.to_lowercase().contains(&search_query);
+                let content_match = thread.content.to_lowercase().contains(&search_query);
+                
+                if !title_match && !content_match {
+                    return false;
+                }
+            }
+            
             true
         })
+        .cloned()
         .collect();
     
     // Apply pagination
     let offset = query.offset.unwrap_or(0);
     let limit = query.limit.unwrap_or(20);
+    let paginated_threads = filtered_threads
+        .into_iter()
+        .skip(offset)
+        .take(limit)
+        .collect::<Vec<_>>();
     
-    if offset < filtered_threads.len() {
-        let end = std::cmp::min(offset + limit, filtered_threads.len());
-        filtered_threads = filtered_threads[offset..end].to_vec();
-    } else {
-        filtered_threads.clear();
-    }
-    
-    // Clone the threads for the response
-    let threads: Vec<Thread> = filtered_threads.iter().map(|&t| t.clone()).collect();
-    
-    HttpResponse::Ok().json(threads)
+    // Return threads
+    HttpResponse::Ok().json(paginated_threads)
 }
 
 /// Get a specific thread by ID
