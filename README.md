@@ -1,54 +1,72 @@
 # AgoraNet
 
-The deliberation layer for the Intercooperative Network (ICN). AgoraNet is a device-aware web interface that synchronizes federated proposal discussions, guardian votes, identity recovery, and anchored decisions to a DAG (Directed Acyclic Graph).
+AgoraNet is the deliberation and social layer for the Intercooperative Network (ICN). It provides a backend API for managing proposal-centric discussion threads, linking governance credentials (Verifiable Credentials), and facilitating context-aware communication within the ICN ecosystem.
 
-## Features
+This backend is built with Rust using the Axum web framework and is designed to integrate seamlessly with the ICN Wallet (mobile/desktop agent) and the ICN Runtime (governance execution).
 
-- Federated deliberation threads
-- Verifiable Credential linking
-- DAG anchoring support
-- DID-authenticated messaging
-- Mobile-first design for ICN Wallet UI integration
+## 🎯 Core Purpose
 
-## API Endpoints
+* **Deliberation Hub:** Central point for discussing ICN proposals, mandates, and governance events.
+* **Contextual Interface:** Links discussion threads directly to on-chain/DAG governance actions.
+* **Federation Aware:** Designed to sync and surface relevant discussions across federated ICN instances (future).
+* **Credential Linking:** Allows users to associate ICN VCs (e.g., votes, identity proofs) with discussion contributions.
 
-- `/api/threads` - List all deliberation threads
-- `/api/threads/credential-link` - Link a Verifiable Credential to a thread
-- `/api/threads/credential-links` - List credential links for threads
+## 🚀 Features (Current Scaffold)
 
-## Development
+* **Modular Structure:** Separated concerns for routes, types, storage (placeholder), and federation (placeholder).
+* **Thread API:** Endpoint to list basic deliberation threads.
+* **Credential Linking API:** Endpoints to link and view credential associations with threads.
+* **Asynchronous Backend:** Built on Tokio and Axum for performance.
+
+## ↔️ API Endpoints (v0.1)
+
+* `GET /api/threads`
+    * Lists active deliberation threads (currently hardcoded placeholders).
+    * Response: `Json<Vec<Thread>>`
+* `POST /api/threads/credential-link`
+    * Links a Verifiable Credential (identified by its CID) to a specific thread.
+    * Request Body: `Json<CredentialLinkRequest> { thread_id: String, credential_cid: String, signer_did: String }`
+    * Response: `Json<CredentialLink>` (confirming the link)
+* `GET /api/threads/credential-links`
+    * Lists credentials linked to threads (currently hardcoded placeholders).
+    * Response: `Json<Vec<CredentialLink>>`
+
+## 🛠️ Development
 
 ### Prerequisites
 
-- Rust 2021 edition or later
-- PostgreSQL database
+* Rust (latest stable version recommended)
+* Cargo
 
 ### Setup
 
-1. Clone the repository
-2. Install dependencies:
-
 ```bash
+# Clone the repository (if you haven't already)
+# git clone <repository-url>
+cd icn-agoranet
+
+# Build the project
 cargo build
 ```
 
-3. Run the development server:
+### Running the Server
 
 ```bash
 cargo run
 ```
 
-The API will be available at `http://localhost:8080`.
+The API server will start and listen on `http://0.0.0.0:3000` (accessible via `http://localhost:3000`).
 
-## Architecture
+## 🧩 Integration Points
 
-AgoraNet is built using:
+* **ICN Wallet:** Will consume AgoraNet APIs to display discussion threads, allow users to post replies (future), and link credentials from the wallet.
+* **ICN Runtime:** Events or receipts from the runtime (e.g., proposal execution, vote confirmations) can generate credentials that are then linked in AgoraNet threads.
+* **Federation Layer (libp2p):** (Future) Will sync thread metadata and potentially messages across participating ICN nodes/federations.
 
-- Axum - Rust web framework
-- SQLx - SQL toolkit for Rust
-- libp2p - P2P networking for federation
-- CID & Multihash - Content-addressable storage
+## 🗺️ Next Steps
 
-## License
-
-Copyright (c) 2023 Intercooperative Network
+* Implement persistent storage for threads and links (e.g., using SQLx with PostgreSQL or a K/V store).
+* Integrate DID-based authentication for posting messages/links.
+* Develop the `federation` module for libp2p integration.
+* Flesh out the `types` module with detailed structures for threads, messages, reactions, etc.
+* Build the frontend UI (likely within the ICN Wallet context).

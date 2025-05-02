@@ -2,3 +2,8 @@
 *.rs.bk
 *.log
 .env
+
+/target/
+*.rs.bk
+*.log
+.env
