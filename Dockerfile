@@ -1,43 +1,57 @@
 # Build stage
-FROM rust:1.76 AS builder
+FROM rust:1.78-slim-bullseye as builder
 
-WORKDIR /app
+WORKDIR /usr/src/agoranet
+
+# Install dependencies
+RUN apt-get update && \
+    apt-get install -y pkg-config libssl-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create blank project
+RUN USER=root cargo new --bin agoranet
 
 # Copy manifests
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.lock Cargo.toml ./
 
-# Create dummy source to build dependencies
-RUN mkdir -p src && \
-    echo "fn main() {}" > src/main.rs && \
-    cargo build --release && \
-    rm -rf src
+# Copy source code
+COPY src src/
+COPY migrations migrations/
 
-# Copy actual source code
-COPY src/ src/
-COPY migrations/ migrations/
-
-# Build the application
+# Build the application with release profile
 RUN cargo build --release
 
 # Runtime stage
-FROM debian:bookworm-slim
+FROM debian:bullseye-slim
 
-RUN apt-get update && apt-get install -y \
-    libssl-dev \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+ARG APP=/usr/local/bin/agoranet
 
-WORKDIR /app
+RUN apt-get update && \
+    apt-get install -y ca-certificates tzdata libssl1.1 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copy the binary and other necessary files
-COPY --from=builder /app/target/release/icn-agoranet /app/icn-agoranet
-COPY --from=builder /app/migrations /app/migrations
+# Copy the binary from builder
+COPY --from=builder /usr/src/agoranet/target/release/agoranet ${APP}
 
-# Set runtime environment variables
-ENV RUST_LOG="info"
+# Copy migrations for sqlx
+COPY --from=builder /usr/src/agoranet/migrations /usr/local/bin/migrations
+
+# Set the working directory
+WORKDIR /usr/local/bin
+
+# Create a non-root user and switch to it
+RUN groupadd -r agoranet && useradd -r -g agoranet agoranet
+RUN chown -R agoranet:agoranet ${APP} /usr/local/bin/migrations
+USER agoranet
+
+# Set environment variables
+ENV TZ=Etc/UTC \
+    RUST_LOG=info
 
 # Expose the API port
 EXPOSE 3001
 
-# Run the binary
-CMD ["/app/icn-agoranet"] 
+# Command to run the application
+CMD ["agoranet"] 

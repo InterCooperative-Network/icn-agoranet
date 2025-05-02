@@ -1,116 +1,148 @@
 # AgoraNet - ICN Deliberation Layer
 
-AgoraNet serves as the deliberation layer for the Intercooperative Network (ICN), providing a social context for governance actions. It's built with Rust using the Axum web framework and interfaces with the ICN Runtime and Wallet.
+AgoraNet is the deliberation layer for the Intercooperative Network (ICN), providing APIs for managing discussion threads, messages, reactions, and credential links. AgoraNet serves as the backend for ICN Wallet's deliberation features.
 
 ## Features
 
-- **Thread Management**: Create and list deliberation threads for proposals
-- **Credential Linking**: Associate Verifiable Credentials with deliberation threads
-- **DID Authentication**: Secure API access using DID-based authentication
-- **Federation**: Synchronize data across federated AgoraNet instances using libp2p
-- **Runtime Integration**: Consume events from the ICN Runtime to create threads and update their status
+- **Thread Management**: Create, retrieve, and list deliberation threads
+- **Messaging**: Post messages, replies, and react to messages in threads
+- **Credential Integration**: Link verifiable credentials to threads for context and authorization
+- **Federation**: Synchronize content across multiple nodes in a permissioned network
+- **Runtime Integration**: Automatically create threads for proposals from the ICN Runtime
+- **DID Authentication**: Secure access with DID-based JWT authentication
 
-## API Endpoints
-
-### Threads
-
-- `GET /api/threads` - List all threads
-- `GET /api/threads/:id` - Get a specific thread by ID
-- `POST /api/threads` - Create a new thread (requires authentication)
-
-### Credential Links
-
-- `GET /api/threads/credential-links` - List all credential links
-- `GET /api/threads/:id/credential-links` - List credential links for a specific thread
-- `POST /api/threads/credential-link` - Create a new credential link (requires authentication)
-
-## Running AgoraNet
+## Getting Started
 
 ### Prerequisites
 
-- Rust 1.76+
-- PostgreSQL database
-- Docker and Docker Compose (optional)
+- Rust (1.70+)
+- PostgreSQL (15+)
+- Docker & Docker Compose (for containerized deployment)
 
-### Environment Variables
-
-AgoraNet uses the following environment variables:
-
-- `DATABASE_URL` - PostgreSQL connection string
-- `PORT` - API server port (default: 3001)
-- `RUST_LOG` - Logging level configuration
-- `RUN_MIGRATIONS` - Whether to run migrations on startup (default: true)
-- `ENABLE_FEDERATION` - Enable federation mode (default: false)
-- `ENABLE_RUNTIME_CLIENT` - Enable Runtime client (default: false)
-- `RUNTIME_API_ENDPOINT` - ICN Runtime API endpoint
-
-### Running with Docker Compose
+### Installation
 
 1. Clone the repository:
-   ```
-   git clone https://github.com/your-org/icn-agoranet.git
-   cd icn-agoranet
-   ```
+```sh
+git clone https://github.com/intercooperative-network/agoranet.git
+cd agoranet
+```
 
-2. Run using Docker Compose:
-   ```
-   docker-compose up -d
-   ```
+2. Set up the database:
+```sh
+# Create PostgreSQL database
+createdb agoranet
 
-This will start PostgreSQL and AgoraNet services.
+# Run migrations
+cargo install sqlx-cli --no-default-features --features rustls,postgres
+DATABASE_URL=postgres://username:password@localhost/agoranet sqlx migrate run
+```
 
-### Running Locally
+3. Configure environment variables (create a `.env` file):
+```
+DATABASE_URL=postgres://username:password@localhost/agoranet
+PORT=3001
+RUST_LOG=info
+ENABLE_FEDERATION=false
+ENABLE_RUNTIME_CLIENT=false
+```
 
-1. Install dependencies:
-   ```
-   cargo build
-   ```
+4. Build and run:
+```sh
+cargo build --release
+./target/release/agoranet
+```
 
-2. Set up a PostgreSQL database and set the DATABASE_URL environment variable:
-   ```
-   export DATABASE_URL=postgres://agoranet:agoranet_password@localhost:5432/agoranet
-   ```
+### Docker Deployment
 
-3. Run the application:
-   ```
-   cargo run
-   ```
+1. Build and run using Docker Compose:
+```sh
+docker-compose up -d
+```
+
+2. For production deployment, use the provided Docker Compose file with environment-specific settings:
+```sh
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+## Configuration
+
+AgoraNet can be configured using environment variables:
+
+### Core Settings
+- `DATABASE_URL`: PostgreSQL connection string
+- `PORT`: API server port (default: 3001)
+- `RUST_LOG`: Logging level (error, warn, info, debug, trace)
+- `DB_MAX_CONNECTIONS`: Maximum database connections (default: 20)
+- `RUN_MIGRATIONS`: Whether to run migrations on startup (default: true)
+
+### Federation Settings
+- `ENABLE_FEDERATION`: Enable federation support (default: false)
+- `FEDERATION_BOOTSTRAP_PEERS`: Comma-separated list of peers to connect to
+- `FEDERATION_LISTEN_ADDR`: libp2p listening address (default: /ip4/0.0.0.0/tcp/4001)
+- `FEDERATION_MAX_CONNECTIONS`: Maximum peer connections (default: 50)
+
+### Runtime Client Settings
+- `ENABLE_RUNTIME_CLIENT`: Enable Runtime integration (default: false)
+- `RUNTIME_API_URL`: URL of the Runtime API (default: http://localhost:3000)
+- `RUNTIME_POLL_INTERVAL`: Poll interval in milliseconds (default: 5000)
+
+## API Documentation
+
+AgoraNet provides a comprehensive RESTful API for thread and message management:
+
+- **API Documentation**: Available at `/swagger-ui/` when the server is running
+- **API Endpoints**: See [API_DOCUMENTATION.md](API_DOCUMENTATION.md) for details
 
 ## Development
 
 ### Running Tests
 
-```
+Run the test suite:
+```sh
 cargo test
+```
+
+Run integration tests:
+```sh
+./scripts/integration_test.sh
+```
+
+Perform load testing (requires k6):
+```sh
+k6 run scripts/load_test.js
 ```
 
 ### Database Migrations
 
-Migrations are managed with SQLx and will run automatically on startup if `RUN_MIGRATIONS=true`.
-
-## Federation
-
-AgoraNet supports federation across multiple instances using libp2p. When federation is enabled:
-
-1. Thread creations are announced to other nodes
-2. Credential links are synchronized across the network
-3. Peers discover each other using a DHT
-
-## Integration with ICN Components
-
-- **ICN Runtime**: AgoraNet listens for events from the Runtime to create threads for proposals
-- **ICN Wallet**: The Wallet consumes AgoraNet's API to display threads and credential links
-
-## DID Authentication
-
-API endpoints that modify data require DID-based authentication using the following format:
-
-```
-Authorization: Bearer <token>
+Create a new migration:
+```sh
+sqlx migrate add <migration_name>
 ```
 
-The token is expected to be a DID-signed JWT that includes the DID identifier.
+Run migrations:
+```sh
+sqlx migrate run
+```
+
+Revert the latest migration:
+```sh
+sqlx migrate revert
+```
+
+## Architecture
+
+AgoraNet consists of the following components:
+
+- **API Server**: Axum-based HTTP server exposing the REST API
+- **Storage Layer**: PostgreSQL-backed storage for threads, messages, and metadata
+- **Federation Module**: libp2p implementation for peer-to-peer synchronization
+- **Runtime Client**: Integration with ICN Runtime for proposal tracking
+- **Authentication**: DID-based JWT authentication and authorization system
 
 ## License
 
-[MIT License](LICENSE)
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+AgoraNet is developed as part of the Intercooperative Network (ICN) initiative.

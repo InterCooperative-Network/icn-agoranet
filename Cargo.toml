@@ -20,6 +20,8 @@ multihash = "0.16"
 axum-server = "0.7.2"
 dotenvy = "0.15"
 futures = "0.3"
+utoipa = { version = "5.3.1", features = ["axum_extras"] }
+utoipa-swagger-ui = "9.0.1"
 
 [dev-dependencies]
 actix-rt = "2.8"

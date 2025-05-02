@@ -1,40 +1,84 @@
-version: '3'
+version: '3.8'
 
 services:
-  postgres:
-    image: postgres:16
-    environment:
-      POSTGRES_USER: agoranet
-      POSTGRES_PASSWORD: agoranet_password
-      POSTGRES_DB: agoranet
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U agoranet"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   agoranet:
     build:
       context: .
       dockerfile: Dockerfile
-    environment:
-      DATABASE_URL: "postgres://agoranet:agoranet_password@postgres:5432/agoranet"
-      PORT: "3001"
-      RUST_LOG: "info,icn_agoranet=debug"
-      RUN_MIGRATIONS: "true"
-      ENABLE_FEDERATION: "false"
-      ENABLE_RUNTIME_CLIENT: "false"
-      RUNTIME_API_ENDPOINT: "http://runtime:3000"
     ports:
       - "3001:3001"
+    environment:
+      - DATABASE_URL=postgres://agoranet:agoranet@postgres:5432/agoranet
+      - RUST_LOG=info
+      - PORT=3001
+      - DB_MAX_CONNECTIONS=30
+      - RUN_MIGRATIONS=true
+      - ENABLE_FEDERATION=${ENABLE_FEDERATION:-false}
+      - ENABLE_RUNTIME_CLIENT=${ENABLE_RUNTIME_CLIENT:-false}
+      # Runtime client settings (if enabled)
+      - RUNTIME_API_URL=${RUNTIME_API_URL:-http://runtime:3000}
+      - RUNTIME_POLL_INTERVAL=${RUNTIME_POLL_INTERVAL:-5000}
+      # Federation settings (if enabled)
+      - FEDERATION_BOOTSTRAP_PEERS=${FEDERATION_BOOTSTRAP_PEERS:-}
+      - FEDERATION_LISTEN_ADDR=${FEDERATION_LISTEN_ADDR:-/ip4/0.0.0.0/tcp/4001}
+      - FEDERATION_MAX_CONNECTIONS=${FEDERATION_MAX_CONNECTIONS:-50}
     depends_on:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    volumes:
+      - agoranet-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/threads"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=agoranet
+      - POSTGRES_PASSWORD=agoranet
+      - POSTGRES_DB=agoranet
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Initialize database with optional custom scripts
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agoranet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@icn.xyz
+      - PGADMIN_DEFAULT_PASSWORD=pgadmin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    profiles:
+      - dev
+
+  # Optional mock runtime service for development/testing
+  mock-runtime:
+    image: node:18-alpine
+    working_dir: /app
+    volumes:
+      - ./mock-runtime:/app
+    command: sh -c "npm install && npm start"
+    ports:
+      - "3000:3000"
+    profiles:
+      - dev
 
 volumes:
-  postgres_data: 
+  postgres-data:
+  agoranet-data: 

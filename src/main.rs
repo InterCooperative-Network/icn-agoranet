@@ -4,6 +4,8 @@ use tracing_subscriber::{FmtSubscriber, EnvFilter};
 use dotenvy::dotenv;
 use std::error::Error;
 use std::sync::Arc;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 mod routes;
 mod types;
@@ -12,8 +14,10 @@ mod federation;
 mod auth;
 mod state;
 mod runtime;
+mod docs;
 
 use state::AppState;
+use docs::ApiDoc;
 
 #[tokio::main]
 async fn main() {
@@ -106,7 +110,7 @@ async fn run() -> Result<(), Box<dyn Error>> {
     };
     
     // Create application state
-    let state = AppState::new(pool, federation.clone());
+    let state = Arc::new(AppState::new(pool, federation.clone()));
     
     tracing::info!("Starting AgoraNet API...");
 
@@ -114,12 +118,17 @@ async fn run() -> Result<(), Box<dyn Error>> {
     let app = Router::new()
         .merge(routes::threads::routes())
         .merge(routes::credentials::routes())
+        .merge(routes::messages::routes())
+        // Add OpenAPI documentation with Swagger UI
+        .merge(SwaggerUi::new("/swagger-ui")
+            .url("/api-docs/openapi.json", ApiDoc::openapi()))
         .with_state(state);
 
     // Bind to the configured address and start the server
     let port = std::env::var("PORT").unwrap_or_else(|_| "3001".to_string())
         .parse::<u16>().unwrap_or(3001);
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    tracing::info!("API documentation available at http://{}:{}/swagger-ui/", addr.ip(), addr.port());
     tracing::info!("Listening on http://{}", addr);
     
     axum_server::bind(addr)
