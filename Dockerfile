@@ -1,5 +1,5 @@
 # Build stage
-FROM rust:1.78-slim-bullseye as builder
+FROM rust:1.81-slim-bullseye as builder
 
 WORKDIR /usr/src/agoranet
 
