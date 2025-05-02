@@ -1,0 +1,103 @@
+version: '3'
+
+services:
+  # Database for the first AgoraNet instance
+  postgres1:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: agoranet
+      POSTGRES_PASSWORD: agoranet_password
+      POSTGRES_DB: agoranet1
+    volumes:
+      - postgres1_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agoranet"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # First AgoraNet instance
+  agoranet1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: "postgres://agoranet:agoranet_password@postgres1:5432/agoranet1"
+      PORT: "3001"
+      RUST_LOG: "info,icn_agoranet=debug"
+      RUN_MIGRATIONS: "true"
+      ENABLE_FEDERATION: "true"
+      P2P_PORT: "4001"
+      NODE_ID: "agoranet1"
+    ports:
+      - "3001:3001"
+      - "4001:4001/tcp"
+      - "4001:4001/udp"
+    depends_on:
+      postgres1:
+        condition: service_healthy
+    networks:
+      - agoranet_federation
+
+  # Database for the second AgoraNet instance
+  postgres2:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: agoranet
+      POSTGRES_PASSWORD: agoranet_password
+      POSTGRES_DB: agoranet2
+    volumes:
+      - postgres2_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agoranet"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Second AgoraNet instance
+  agoranet2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: "postgres://agoranet:agoranet_password@postgres2:5432/agoranet2"
+      PORT: "3002"
+      RUST_LOG: "info,icn_agoranet=debug"
+      RUN_MIGRATIONS: "true"
+      ENABLE_FEDERATION: "true"
+      P2P_PORT: "4002"
+      NODE_ID: "agoranet2"
+      BOOTSTRAP_PEERS: "/ip4/agoranet1/tcp/4001"
+    ports:
+      - "3002:3002"
+      - "4002:4002/tcp"
+      - "4002:4002/udp"
+    depends_on:
+      - agoranet1
+      - postgres2
+    networks:
+      - agoranet_federation
+
+  # Mock Runtime server
+  mock_runtime:
+    build:
+      context: ./mock_runtime
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./mock_runtime:/app
+    networks:
+      - agoranet_federation
+
+networks:
+  agoranet_federation:
+    driver: bridge
+
+volumes:
+  postgres1_data:
+  postgres2_data: 

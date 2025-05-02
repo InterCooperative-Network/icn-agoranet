@@ -1,0 +1,23 @@
+[
+  {
+    "type": "ProposalCreated",
+    "proposal_cid": "bafybeihykld6nqwmzul5pswm7jgj4qmyarm4sfsfwihhzne6vmuob6itdi",
+    "title": "Test Proposal",
+    "created_by": "did:icn:test123",
+    "timestamp": 1646200800
+  },
+  {
+    "type": "CredentialIssued",
+    "credential_cid": "bafybeihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku",
+    "issuer_did": "did:icn:issuer",
+    "subject_did": "did:icn:subject",
+    "credential_type": "VoteCredential",
+    "timestamp": 1646230800
+  },
+  {
+    "type": "ProposalFinalized",
+    "proposal_cid": "bafybeihykld6nqwmzul5pswm7jgj4qmyarm4sfsfwihhzne6vmuob6itdi",
+    "approved": true,
+    "timestamp": 1646287200
+  }
+] 

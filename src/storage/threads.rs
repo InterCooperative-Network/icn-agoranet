@@ -45,6 +45,24 @@ impl ThreadRepository {
 
         Ok(thread)
     }
+    
+    pub async fn find_thread_by_proposal_cid(&self, proposal_cid: &str) -> Result<Thread> {
+        let thread = sqlx::query_as!(
+            Thread,
+            r#"
+            SELECT id, title, proposal_cid, created_at, updated_at
+            FROM threads
+            WHERE proposal_cid = $1
+            "#,
+            proposal_cid
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(StorageError::Database)?
+        .ok_or(StorageError::NotFound)?;
+
+        Ok(thread)
+    }
 
     pub async fn create_thread(&self, title: &str, proposal_cid: Option<&str>) -> Result<Thread> {
         let id = Uuid::new_v4();
@@ -63,6 +81,26 @@ impl ThreadRepository {
         .fetch_one(&self.pool)
         .await
         .map_err(StorageError::Database)?;
+
+        Ok(thread)
+    }
+    
+    pub async fn update_thread(&self, id: Uuid, title: &str) -> Result<Thread> {
+        let thread = sqlx::query_as!(
+            Thread,
+            r#"
+            UPDATE threads
+            SET title = $1, updated_at = NOW()
+            WHERE id = $2
+            RETURNING id, title, proposal_cid, created_at, updated_at
+            "#,
+            title,
+            id
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(StorageError::Database)?
+        .ok_or(StorageError::NotFound)?;
 
         Ok(thread)
     }

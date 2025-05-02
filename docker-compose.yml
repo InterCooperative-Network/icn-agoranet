@@ -1,16 +1,40 @@
-version: '3.8'
+version: '3'
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: icn_agoranet
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: agoranet
+      POSTGRES_PASSWORD: agoranet_password
+      POSTGRES_DB: agoranet
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agoranet"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  agoranet:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: "postgres://agoranet:agoranet_password@postgres:5432/agoranet"
+      PORT: "3001"
+      RUST_LOG: "info,icn_agoranet=debug"
+      RUN_MIGRATIONS: "true"
+      ENABLE_FEDERATION: "false"
+      ENABLE_RUNTIME_CLIENT: "false"
+      RUNTIME_API_ENDPOINT: "http://runtime:3000"
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   postgres_data: 

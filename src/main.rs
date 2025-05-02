@@ -1,4 +1,4 @@
-use axum::Router;
+use axum::{Router, middleware::from_fn_with_state};
 use std::net::SocketAddr;
 use tracing_subscriber::{FmtSubscriber, EnvFilter};
 use dotenvy::dotenv;
@@ -9,6 +9,11 @@ mod routes;
 mod types;
 mod storage;
 mod federation;
+mod auth;
+mod state;
+mod runtime;
+
+use state::AppState;
 
 #[tokio::main]
 async fn main() {
@@ -42,6 +47,19 @@ async fn run() -> Result<(), Box<dyn Error>> {
     // Create database connection pool
     tracing::info!("Creating database pool...");
     let pool = storage::create_db_pool().await?;
+    
+    // Run migrations if enabled
+    let run_migrations = std::env::var("RUN_MIGRATIONS")
+        .unwrap_or_else(|_| "true".to_string())
+        .parse::<bool>()
+        .unwrap_or(true);
+        
+    if run_migrations {
+        tracing::info!("Running database migrations...");
+        sqlx::migrate!().run(&pool).await?;
+        tracing::info!("Migrations completed successfully");
+    }
+    
     tracing::info!("Database connection pool created successfully");
     
     // Initialize federation (if enabled)
@@ -64,13 +82,39 @@ async fn run() -> Result<(), Box<dyn Error>> {
         None
     };
     
+    // Initialize Runtime client (if enabled)
+    let runtime_enabled = std::env::var("ENABLE_RUNTIME_CLIENT")
+        .unwrap_or_else(|_| "false".to_string())
+        .parse::<bool>()
+        .unwrap_or(false);
+    
+    let mut runtime_client = if runtime_enabled {
+        tracing::info!("Initializing Runtime client...");
+        let mut client = runtime::RuntimeClient::new(pool.clone(), federation.clone());
+        
+        // Start the Runtime client
+        client.start().await.map_err(|e| {
+            tracing::error!("Failed to start Runtime client: {}", e);
+            Box::new(e) as Box<dyn Error>
+        })?;
+        tracing::info!("Runtime client started");
+        
+        Some(client)
+    } else {
+        tracing::info!("Runtime client disabled");
+        None
+    };
+    
+    // Create application state
+    let state = AppState::new(pool, federation.clone());
+    
     tracing::info!("Starting AgoraNet API...");
 
-    // Create the Axum application with routes, passing the DB pool
+    // Create the Axum application with routes, passing the app state
     let app = Router::new()
         .merge(routes::threads::routes())
         .merge(routes::credentials::routes())
-        .with_state(pool);
+        .with_state(state);
 
     // Bind to the configured address and start the server
     let port = std::env::var("PORT").unwrap_or_else(|_| "3001".to_string())
@@ -82,6 +126,16 @@ async fn run() -> Result<(), Box<dyn Error>> {
         .serve(app.into_make_service())
         .await?;
         
+    // Shutdown the Runtime client if it was started
+    if let Some(ref mut client) = runtime_client {
+        tracing::info!("Stopping Runtime client...");
+        if let Err(e) = client.stop().await {
+            tracing::error!("Error stopping Runtime client: {}", e);
+        } else {
+            tracing::info!("Runtime client stopped");
+        }
+    }
+    
     // Shutdown the federation if it was started
     if let Some(fed) = federation {
         tracing::info!("Stopping federation module...");

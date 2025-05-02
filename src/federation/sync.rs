@@ -175,8 +175,39 @@ impl SyncEngine {
     
     /// Announce a new credential link to the federation
     pub async fn announce_credential_link(&self, thread_id: &str, link_id: &str) -> Result<()> {
-        // TODO: Implement credential link announcement
-        // This is a placeholder awaiting implementation of the credential link retrieval by ID
+        // Get thread UUID
+        let thread_uuid = Uuid::parse_str(thread_id)
+            .map_err(|_| FederationError::Other("Invalid thread ID format".to_string()))?;
+            
+        // Get link UUID
+        let link_uuid = Uuid::parse_str(link_id)
+            .map_err(|_| FederationError::Other("Invalid link ID format".to_string()))?;
+        
+        // Retrieve all links for the thread
+        let links = self.link_repo.get_links_for_thread(thread_uuid).await?;
+        
+        // Find the specific link
+        let link = links.into_iter()
+            .find(|l| l.id == link_uuid)
+            .ok_or_else(|| FederationError::Other("Credential link not found".to_string()))?;
+        
+        // Create credential link message
+        let link_msg = CredentialLinkMessage::new(
+            link.id.to_string(),
+            link.thread_id.to_string(),
+            link.credential_cid.clone(),
+            link.linked_by.clone(),
+        );
+        
+        // Create sync message
+        let sync_msg = SyncMessage::CredentialLink(link_msg);
+        let data = sync_msg.to_bytes()
+            .map_err(|e| FederationError::Serialization(e.to_string()))?;
+        
+        // Publish to the network
+        let mut network = self.network.write().await;
+        network.publish(NetworkTopic::CredentialLinkAnnounce, data).await
+            .map_err(|e| FederationError::Network(e.to_string()))?;
         
         Ok(())
     }
@@ -213,10 +244,29 @@ async fn handle_credential_link_announcement(
     link_repo: &CredentialLinkRepository,
     msg: &CredentialLinkMessage,
 ) -> Result<()> {
-    // TODO: Implement credential link handling
-    // This is a placeholder awaiting implementation
+    // Parse UUIDs
+    let _link_id = match Uuid::parse_str(&msg.link_id) {
+        Ok(uuid) => uuid,
+        Err(_) => return Err(FederationError::Other("Invalid link ID format".to_string())),
+    };
     
-    Ok(())
+    let _thread_id = match Uuid::parse_str(&msg.thread_id) {
+        Ok(uuid) => uuid,
+        Err(_) => return Err(FederationError::Other("Invalid thread ID format".to_string())),
+    };
+    
+    // Create request object for repository
+    let link_req = crate::routes::credentials::CredentialLinkRequest {
+        thread_id: msg.thread_id.clone(),
+        credential_cid: msg.credential_cid.clone(),
+        signer_did: msg.linked_by.clone(),
+    };
+    
+    // Create the credential link
+    match link_repo.create_credential_link(&link_req).await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(FederationError::Storage(e)),
+    }
 }
 
 /// Handle a thread sync request message
@@ -227,8 +277,60 @@ async fn handle_thread_sync_request(
     msg: &ThreadSyncRequestMessage,
     requester_peer_id: &str,
 ) -> Result<()> {
-    // TODO: Implement thread sync request handling
-    // This is a placeholder awaiting implementation
+    // Parse thread ID
+    let thread_id = match Uuid::parse_str(&msg.thread_id) {
+        Ok(uuid) => uuid,
+        Err(_) => return Err(FederationError::Other("Invalid thread ID format".to_string())),
+    };
+    
+    // Get thread
+    let thread = match thread_repo.get_thread(thread_id).await {
+        Ok(t) => t,
+        Err(e) => return Err(FederationError::Storage(e)),
+    };
+    
+    // Get credential links for thread
+    let links = match link_repo.get_links_for_thread(thread_id).await {
+        Ok(l) => l,
+        Err(e) => return Err(FederationError::Storage(e)),
+    };
+    
+    // Announce thread to the requester
+    let thread_msg = ThreadMessage::new(
+        thread.id.to_string(),
+        thread.title.clone(),
+        thread.proposal_cid.clone(),
+        "did:icn:local".to_string(), // TODO: Use actual local DID
+    );
+    
+    let sync_msg = SyncMessage::Thread(thread_msg);
+    let data = sync_msg.to_bytes()
+        .map_err(|e| FederationError::Serialization(e.to_string()))?;
+    
+    // Send thread message to the requester
+    let network_handle = network.write().await;
+    // Direct send_to_peer implementation would need to be added to FederationNetwork
+    // For now, we'll just publish to the topic
+    network_handle.publish(NetworkTopic::ThreadAnnounce, data.clone()).await
+        .map_err(|e| FederationError::Network(e.to_string()))?;
+    
+    // Announce credential links
+    for link in links {
+        let link_msg = CredentialLinkMessage::new(
+            link.id.to_string(),
+            link.thread_id.to_string(),
+            link.credential_cid.clone(),
+            link.linked_by.clone(),
+        );
+        
+        let sync_msg = SyncMessage::CredentialLink(link_msg);
+        let data = sync_msg.to_bytes()
+            .map_err(|e| FederationError::Serialization(e.to_string()))?;
+        
+        // Send credential link message to the requester
+        network_handle.publish(NetworkTopic::CredentialLinkAnnounce, data.clone()).await
+            .map_err(|e| FederationError::Network(e.to_string()))?;
+    }
     
     Ok(())
 } 
