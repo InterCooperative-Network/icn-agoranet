@@ -1,41 +1,56 @@
-use axum::{Json, Router, routing::{post, get}};
-use serde::{Serialize, Deserialize};
+use axum::{
+    Json, 
+    Router, 
+    routing::{post, get},
+    extract::State,
+    http::StatusCode,
+};
+use serde::Deserialize;
+use sqlx::PgPool;
+use crate::storage::CredentialLinkRepository;
+use crate::types::credential::CredentialLinkResponse;
 
-pub fn routes() -> Router {
+// Define public request and response types
+#[derive(Deserialize, Debug)]
+pub struct CredentialLinkRequest {
+    pub thread_id: String,
+    pub credential_cid: String,
+    pub signer_did: String,
+}
+
+// Define the route handlers
+pub fn routes() -> Router<PgPool> {
     Router::new()
         .route("/api/threads/credential-link", post(link_credential))
         .route("/api/threads/credential-links", get(list_links))
 }
 
-#[derive(Deserialize)]
-struct CredentialLinkRequest {
-    thread_id: String,
-    credential_cid: String,
-    signer_did: String,
+// Create a credential link
+async fn link_credential(
+    State(pool): State<PgPool>,
+    Json(req): Json<CredentialLinkRequest>
+) -> Result<Json<CredentialLinkResponse>, StatusCode> {
+    let link_repo = CredentialLinkRepository::new(pool);
+    
+    match link_repo.create_credential_link(&req).await {
+        Ok(link) => Ok(Json(link.into())),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
 }
 
-#[derive(Serialize)]
-struct CredentialLink {
-    thread_id: String,
-    credential_cid: String,
-    linked_by: String,
-    timestamp: i64,
-}
-
-async fn link_credential(Json(req): Json<CredentialLinkRequest>) -> Json<CredentialLink> {
-    Json(CredentialLink {
-        thread_id: req.thread_id,
-        credential_cid: req.credential_cid,
-        linked_by: req.signer_did,
-        timestamp: chrono::Utc::now().timestamp(),
-    })
-}
-
-async fn list_links() -> Json<Vec<CredentialLink>> {
-    Json(vec![CredentialLink {
-        thread_id: "thread-1".to_string(),
-        credential_cid: "bafy...".to_string(),
-        linked_by: "did:icn:indv:xyz".to_string(),
-        timestamp: chrono::Utc::now().timestamp(),
-    }])
+// List credential links
+async fn list_links(
+    State(pool): State<PgPool>
+) -> Result<Json<Vec<CredentialLinkResponse>>, StatusCode> {
+    let link_repo = CredentialLinkRepository::new(pool);
+    
+    match link_repo.list_credential_links().await {
+        Ok(links) => {
+            let responses: Vec<CredentialLinkResponse> = links.into_iter()
+                .map(|link| link.into())
+                .collect();
+            Ok(Json(responses))
+        },
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
 } 
