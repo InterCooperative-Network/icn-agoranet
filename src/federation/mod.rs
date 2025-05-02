@@ -2,7 +2,6 @@
 // Will handle peer-to-peer communication and data synchronization
 
 use libp2p::{
-    gossipsub::{Gossipsub, GossipsubConfig, MessageAuthenticity, ValidationMode},
     identity::Keypair,
     PeerId,
 };
@@ -22,7 +21,6 @@ pub enum FederationError {
 
 pub struct Federation {
     local_peer_id: PeerId,
-    gossipsub: Gossipsub,
 }
 
 impl Federation {
@@ -31,15 +29,8 @@ impl Federation {
         let local_key = Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
         
-        // Create gossipsub configuration
-        let gossipsub_config = GossipsubConfig::default();
-        let message_authenticity = MessageAuthenticity::Signed(local_key);
-        let gossipsub = Gossipsub::new(message_authenticity, gossipsub_config)
-            .map_err(|e| FederationError::Network(e.to_string()))?;
-        
         Ok(Self {
             local_peer_id,
-            gossipsub,
         })
     }
     

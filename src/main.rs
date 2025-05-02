@@ -1,4 +1,4 @@
-use axum::{routing::get, Router};
+use axum::Router;
 use std::net::SocketAddr;
 use tracing_subscriber::FmtSubscriber;
 
@@ -15,9 +15,10 @@ async fn main() {
         .merge(routes::threads::routes())
         .merge(routes::credentials::routes());
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     tracing::info!("Starting AgoraNet API on http://{}", addr);
-    axum::Server::bind(&addr)
+    
+    axum_server::bind(addr)
         .serve(app.into_make_service())
         .await
         .unwrap();
