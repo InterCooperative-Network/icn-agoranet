@@ -7,3 +7,4 @@
 *.rs.bk
 *.log
 .env
+llm_context_dump_agoranet.txt
