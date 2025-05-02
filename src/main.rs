@@ -1,47 +1,24 @@
-use actix_web::{web, App, HttpServer, middleware};
-use actix_cors::Cors;
-use serde::{Serialize, Deserialize};
-use std::sync::Mutex;
-use std::collections::HashMap;
+use axum::{routing::get, Router};
+use std::net::SocketAddr;
+use tracing_subscriber::FmtSubscriber;
 
-mod api;
-mod models;
-mod database;
+mod routes;
+mod types;
+mod storage;
+mod federation;
 
-use crate::database::Database;
-use crate::api::{credential_linking, thread};
+#[tokio::main]
+async fn main() {
+    FmtSubscriber::builder().init();
 
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
-    // Initialize logger
-    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
-    
-    // Create database instance
-    let db = web::Data::new(Mutex::new(Database::new()));
-    
-    log::info!("Starting AgoraNet server on http://127.0.0.1:8080");
-    
-    // Start HTTP server
-    HttpServer::new(move || {
-        // Configure CORS
-        let cors = Cors::default()
-            .allow_any_origin()
-            .allow_any_method()
-            .allow_any_header()
-            .max_age(3600);
-        
-        App::new()
-            .app_data(db.clone())
-            .wrap(middleware::Logger::default())
-            .wrap(cors)
-            .service(
-                web::scope("/api")
-                    .configure(credential_linking::configure_routes)
-                    .configure(thread::configure_routes)
-            )
-            .route("/", web::get().to(|| async { "AgoraNet API Server" }))
-    })
-    .bind("127.0.0.1:8080")?
-    .run()
-    .await
+    let app = Router::new()
+        .merge(routes::threads::routes())
+        .merge(routes::credentials::routes());
+
+    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
+    tracing::info!("Starting AgoraNet API on http://{}", addr);
+    axum::Server::bind(&addr)
+        .serve(app.into_make_service())
+        .await
+        .unwrap();
 } 
