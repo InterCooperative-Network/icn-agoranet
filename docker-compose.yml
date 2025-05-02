@@ -29,11 +29,11 @@ services:
     volumes:
       - agoranet-data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/api/threads"]
-      interval: 30s
-      timeout: 10s
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 15s
+      timeout: 5s
       retries: 3
-      start_period: 40s
+      start_period: 30s
 
   postgres:
     image: postgres:15-alpine

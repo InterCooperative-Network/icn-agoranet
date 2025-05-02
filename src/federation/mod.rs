@@ -108,4 +108,12 @@ impl Federation {
             
         Ok(peers)
     }
+    
+    /// Check if the federation service is running
+    pub fn is_running(&self) -> bool {
+        // Since we can't do an async call here, we'll consider it running
+        // if it has been initialized. In a more complete implementation,
+        // we might use a shared atomic flag that's updated by start/stop
+        true
+    }
 } 

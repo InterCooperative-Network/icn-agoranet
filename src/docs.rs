@@ -11,6 +11,7 @@ use crate::types::{
 };
 
 use crate::routes::messages::MessageQueryParams;
+use crate::health::HealthResponse;
 
 struct SecurityAddon;
 
@@ -58,6 +59,9 @@ impl Modify for SecurityAddon {
         // Credential link endpoints
         crate::routes::credentials::list_credential_links,
         crate::routes::credentials::link_credential,
+        
+        // Health endpoint
+        crate::health::health_check,
     ),
     components(
         schemas(
@@ -71,10 +75,12 @@ impl Modify for SecurityAddon {
             ReactionResponse,
             CredentialLink,
             CredentialLinkResponse,
+            HealthResponse,
         )
     ),
     tags(
         (name = "AgoraNet API", description = "ICN Deliberation Layer API"),
+        (name = "Health", description = "API Health Check"),
     ),
     modifiers(&SecurityAddon),
     info(

@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  agoranet:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - DATABASE_URL=postgres://agoranet:agoranet@postgres:5432/agoranet
+      - RUST_LOG=info
+      - PORT=3001
+      - DB_MAX_CONNECTIONS=10
+      - RUN_MIGRATIONS=true
+      - ENABLE_FEDERATION=false
+      - ENABLE_RUNTIME_CLIENT=true
+      - RUNTIME_API_URL=http://mock-runtime:3000
+      - RUNTIME_POLL_INTERVAL=2000
+      - LOG_FORMAT=json  # Use JSON format for structured logging
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=agoranet
+      - POSTGRES_PASSWORD=agoranet
+      - POSTGRES_DB=agoranet
+    tmpfs:
+      - /var/lib/postgresql/data  # Use tmpfs for faster performance in tests
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agoranet"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  mock-runtime:
+    image: node:18-alpine
+    working_dir: /app
+    volumes:
+      - ./mock_runtime:/app
+    command: sh -c "npm install && npm start"
+    ports:
+      - "3000:3000"
+
+# No volumes defined to ensure clean state for each test run 

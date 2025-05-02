@@ -15,6 +15,7 @@ mod auth;
 mod state;
 mod runtime;
 mod docs;
+mod health;
 
 use state::AppState;
 use docs::ApiDoc;
@@ -24,10 +25,23 @@ async fn main() {
     // Load environment variables from .env file
     dotenv().ok();
     
-    // Initialize logging with environment-based filters
-    FmtSubscriber::builder()
-        .with_env_filter(EnvFilter::from_default_env())
-        .init();
+    // Initialize logging with environment-based filters and optional JSON format
+    let log_format = std::env::var("LOG_FORMAT").unwrap_or_else(|_| "text".to_string());
+    
+    if log_format == "json" {
+        // Use JSON format for structured logging (better for automated parsing)
+        FmtSubscriber::builder()
+            .with_env_filter(EnvFilter::from_default_env())
+            .json()
+            .with_current_span(true)
+            .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
+            .init();
+    } else {
+        // Use normal text format (better for human reading)
+        FmtSubscriber::builder()
+            .with_env_filter(EnvFilter::from_default_env())
+            .init();
+    }
         
     if let Err(e) = run().await {
         tracing::error!("Application error: {}", e);
@@ -119,6 +133,7 @@ async fn run() -> Result<(), Box<dyn Error>> {
         .merge(routes::threads::routes())
         .merge(routes::credentials::routes())
         .merge(routes::messages::routes())
+        .merge(health::routes())
         // Add OpenAPI documentation with Swagger UI
         .merge(SwaggerUi::new("/swagger-ui")
             .url("/api-docs/openapi.json", ApiDoc::openapi()))
