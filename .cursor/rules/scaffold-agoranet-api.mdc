@@ -1,0 +1,46 @@
+---
+description: AgoraNet API scaffold and development pattern
+globs: ["src/**/*.rs", "Cargo.toml"]
+alwaysApply: true
+---
+
+## 🧠 Context
+
+You're working in the `icn-agoranet` repository — a Rust-based Axum API that serves as the **deliberation layer** for the Intercooperative Network (ICN). It interfaces with federated DAG state, Verifiable Credentials, and DID-authenticated proposals. This backend will be integrated into the ICN Wallet and libp2p federation.
+
+## 🧩 Core Responsibilities
+
+- Expose REST endpoints for:
+  - Listing deliberation threads
+  - Linking credentials to threads
+- Enable future expansion for:
+  - Federation sync (via libp2p)
+  - DAG anchoring and TrustBundle subscriptions
+  - Guardian mandate review and appeal
+- Use `serde`, `chrono`, `uuid`, and `sqlx` for serialization and future persistence
+
+## 📦 Project Scaffolding
+
+- `src/main.rs`: Boots Axum API on port 8080, tracing enabled
+- `src/routes/threads.rs`: Handles `GET /api/threads`
+- `src/routes/credentials.rs`: Handles `POST /api/threads/credential-link` and `GET /api/threads/credential-links`
+- `src/storage/`: Placeholder for SQLX or DAG-backed storage
+- `src/types/`: Shared types for messages, credentials, etc.
+- `src/federation/`: Placeholder for libp2p federation sync logic
+
+## 🛠️ Coding Guidelines
+
+- Prefer explicit `Router::new().route()` compositions
+- Keep route logic and data structures colocated per endpoint
+- Avoid macros like `#[tokio::main]` in tests — prefer testable services
+- Use `chrono::Utc::now().timestamp()` for time consistency
+- All messages and proposals must be scoped by `did:icn:*` identifiers
+- Avoid anchoring to the DAG directly until federation logic is in place
+
+## ✅ Completion Checklist
+
+When adding a new feature:
+- Add a route in `src/routes/*`
+- Define input/output types clearly with `serde::{Serialize, Deserialize}`
+- If stateful, prepare future SQLX or CID support in `src/storage`
+- Expose API via Axum, test with curl or integration harness
