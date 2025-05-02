@@ -4,10 +4,14 @@
 mod db;
 mod threads;
 mod credentials;
+mod messages;
+mod reactions;
 
 pub use db::create_db_pool;
 pub use threads::ThreadRepository;
 pub use credentials::CredentialLinkRepository;
+pub use messages::MessageRepository;
+pub use reactions::ReactionRepository;
 
 use sqlx::postgres::PgPool;
 use thiserror::Error;
